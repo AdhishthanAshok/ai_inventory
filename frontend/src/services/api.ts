@@ -1,5 +1,5 @@
 // API service layer - centralized fetch wrappers for all backend endpoints
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+const rawApiUrl = process.env.NEXT_API_URL || "";
 const API_URL = rawApiUrl.replace(/\/$/, "");
 import { logger } from "@/utils/logger";
 
