@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["192.168.1.7", "http://localhost:3000"],
+  allowedDevOrigins: ["192.168.1.7", "http://localhost:3000", "https://ai-inventory-nu.vercel.app"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "res.cloudinary.com" },
