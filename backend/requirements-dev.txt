@@ -1,0 +1,6 @@
+# Development dependencies - includes ML libs for local image processing
+# Install with: pip install -r requirements-dev.txt
+-r requirements.txt
+rembg==2.0.84
+onnxruntime
+pillow

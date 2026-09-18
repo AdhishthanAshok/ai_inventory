@@ -1,0 +1,12 @@
+# Python / Env
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+
+# Testing / Misc
+.pytest_cache/
+alembic.ini
+*.log
