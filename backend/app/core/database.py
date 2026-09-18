@@ -1,4 +1,5 @@
 # SQLAlchemy async engine, session factory, and Base declarative class
+import ssl
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 
@@ -9,7 +10,11 @@ settings = get_settings()
 
 connect_args = {}
 if settings.ENVIRONMENT == "production":
-    connect_args["sslmode"] = "require"
+    # Create a secure SSL context for asyncpg in production (like Aiven)
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    connect_args["ssl"] = ssl_context
 
 # Use create_async_engine for asyncpg
 engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
