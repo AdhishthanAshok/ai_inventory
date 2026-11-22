@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   env: {
     CUSTOM_API_URL: process.env.BACKEND_URL,
   },
-  allowedDevOrigins: ["192.168.1.7", "http://localhost:3000", "https://ai-inventory-nu.vercel.app"],
+  allowedDevOrigins: ["https://ai-inventory-backend.vercel.app", "192.168.1.7", "http://localhost:3000", "https://ai-inventory-nu.vercel.app"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "res.cloudinary.com" },
