@@ -1,9 +1,6 @@
 # Auth API endpoints: register and login
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.core.security import hash_password, verify_password, create_access_token, get_current_user
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, TokenResponse, UserResponse
@@ -13,10 +10,9 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(payload: UserCreate):
     logger.info(f"Registering new user with username: {payload.username}")
-    result = await db.execute(select(User).filter(User.username == payload.username))
-    existing = result.scalars().first()
+    existing = await User.find_one(User.username == payload.username)
     if existing:
         logger.warning(f"Registration failed: username {payload.username} already taken")
         raise HTTPException(status_code=400, detail="Username already taken")
@@ -25,9 +21,7 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
         username=payload.username,
         password_hash=hash_password(payload.password),
     )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
+    await user.insert()
 
     token = create_access_token(data={"sub": str(user.id)})
     logger.info(f"User registered successfully: {user.id}")
@@ -38,10 +32,9 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(payload: UserLogin):
     logger.info(f"Login attempt for username: {payload.username}")
-    result = await db.execute(select(User).filter(User.username == payload.username))
-    user = result.scalars().first()
+    user = await User.find_one(User.username == payload.username)
     if not user or not verify_password(payload.password, user.password_hash):
         logger.warning(f"Login failed for username: {payload.username}")
         raise HTTPException(status_code=401, detail="Invalid username or password")

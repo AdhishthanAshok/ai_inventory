@@ -1,47 +1,37 @@
-# SQLAlchemy async engine, session factory, and Base declarative class
-import ssl
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.orm import declarative_base
+# Beanie + Motor async database initialization
+from motor.motor_asyncio import AsyncIOMotorClient
+import beanie
 
 from app.core.config import get_settings
 from app.core.logger import logger
 
 settings = get_settings()
 
-connect_args = {}
-if settings.ENVIRONMENT == "production":
-    # Create a secure SSL context for asyncpg in production (like Aiven)
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-    connect_args["ssl"] = ssl_context
-
-# Use create_async_engine for asyncpg
-engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
-SessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False
-)
-Base = declarative_base()
+_client: AsyncIOMotorClient | None = None
 
 
-async def get_db():
-    async with SessionLocal() as session:
-        yield session
-
-
-async def init_db():
-    logger.info("Creating database tables if they do not exist")
-    from app.models.user import User
-    from app.models.item import Item
+async def init_db() -> None:
+    global _client
+    logger.info("Connecting to MongoDB and initializing Beanie...")
     try:
-        # Use run_sync to run metadata creation asynchronously
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables verified/created successfully")
+        _client = AsyncIOMotorClient(settings.MONGODB_URL)
+        # Deferred imports to avoid circular imports at module load time
+        from app.models.user import User
+        from app.models.item import Item
+        await beanie.init_beanie(
+            database=_client[settings.DATABASE_NAME],
+            document_models=[User, Item],
+        )
+        logger.info("MongoDB connection and Beanie initialization successful")
     except Exception as e:
-        logger.error(f"Failed to create database tables: {e}")
+        logger.error(f"Failed to initialize MongoDB/Beanie: {e}")
         raise
+
+
+async def close_db() -> None:
+    global _client
+    if _client is not None:
+        logger.info("Closing MongoDB connection...")
+        _client.close()
+        _client = None
+        logger.info("MongoDB connection closed")

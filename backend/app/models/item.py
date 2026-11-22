@@ -1,24 +1,21 @@
-# SQLAlchemy model for the items (clothing inventory) table
-import uuid
+# Beanie document model for the items (clothing inventory) collection
 from datetime import datetime, timezone
+from typing import Optional
+import uuid
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
-
-from app.core.database import Base
+from beanie import Document, Indexed
+from pydantic import Field
 
 
-class Item(Base):
-    __tablename__ = "items"
+class Item(Document):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: Indexed(str)
+    image_url: str
+    category: Optional[str] = None
+    color: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
+    status: str = "CLEAN"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    image_url = Column(Text, nullable=False)
-    category = Column(String(50))
-    color = Column(String(30))
-    tags = Column(JSONB, default=list)
-    status = Column(String(20), default="CLEAN")
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
-    owner = relationship("User", back_populates="items")
+    class Settings:
+        name = "items"

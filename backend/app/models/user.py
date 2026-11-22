@@ -1,21 +1,17 @@
-# SQLAlchemy model for the users table
-import uuid
+# Beanie document model for the users collection
 from datetime import datetime, timezone
+import uuid
 
-from sqlalchemy import Column, String, DateTime
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
-
-from app.core.database import Base
+from beanie import Document, Indexed
+from pydantic import Field
 
 
-class User(Base):
-    __tablename__ = "users"
+class User(Document):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    username: Indexed(str, unique=True)
+    password_hash: str
+    last_login: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    username = Column(String(50), unique=True, nullable=False, index=True)
-    password_hash = Column(String(255), nullable=False)
-    last_login = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
-    items = relationship("Item", back_populates="owner", cascade="all, delete-orphan")
+    class Settings:
+        name = "users"

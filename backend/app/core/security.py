@@ -6,9 +6,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 import bcrypt
+import hashlib
 
 from app.core.config import get_settings
-from app.core.database import get_db
 from app.models.user import User
 from app.core.logger import logger
 
@@ -16,8 +16,6 @@ settings = get_settings()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-
-import hashlib
 
 def _pre_hash(password: str) -> bytes:
     # Pre-hash to avoid bcrypt's 72-byte limit for long passwords
@@ -47,12 +45,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -69,13 +63,12 @@ async def get_current_user(
         logger.warning(f"JWTError during token decode: {e}")
         raise credentials_exception
 
-    result = await db.execute(select(User).filter(User.id == user_id))
-    user = result.scalars().first()
+    user = await User.find_one(User.id == str(user_id))
     if user is None:
         logger.warning(f"User {user_id} not found in database during auth")
         raise credentials_exception
 
     # Update last_login on every authenticated request
     user.last_login = datetime.now(timezone.utc)
-    await db.commit()
+    await user.save()
     return user

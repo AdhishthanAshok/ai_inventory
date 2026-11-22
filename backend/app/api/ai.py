@@ -1,9 +1,6 @@
 # AI API endpoints: outfit recommendation and purchase evaluation
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.item import Item
 from app.models.user import User
@@ -34,13 +31,11 @@ def _items_to_dicts(items: list[Item]) -> list[dict]:
 async def get_recommendation(
     payload: RecommendRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Item).filter(
-        Item.user_id == current_user.id,
+    clean_items = await Item.find(
+        Item.user_id == str(current_user.id),
         Item.status == "CLEAN",
-    ))
-    clean_items = result.scalars().all()
+    ).to_list()
 
     if not clean_items:
         logger.warning(f"Recommendation failed: no clean items for user {current_user.id}")
@@ -67,7 +62,6 @@ async def get_recommendation(
 async def evaluate_purchase_endpoint(
     payload: EvaluatePurchaseRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     # Scrape product info from URL
     try:
@@ -78,8 +72,7 @@ async def evaluate_purchase_endpoint(
         raise HTTPException(status_code=400, detail=f"Could not fetch product info: {str(e)}")
 
     # Get user's full inventory
-    result = await db.execute(select(Item).filter(Item.user_id == current_user.id))
-    all_items = result.scalars().all()
+    all_items = await Item.find(Item.user_id == str(current_user.id)).to_list()
     inventory = _items_to_dicts(all_items)
 
     try:

@@ -2,10 +2,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.item import Item
 from app.models.user import User
@@ -23,17 +20,14 @@ async def list_items(
     status_filter: str = None,
     category: str = None,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     logger.info(f"Listing items for user: {current_user.id}, status_filter={status_filter}, category={category}")
-    query = select(Item).filter(Item.user_id == current_user.id)
+    query: dict = {"user_id": str(current_user.id)}
     if status_filter:
-        query = query.filter(Item.status == status_filter.upper())
+        query["status"] = status_filter.upper()
     if category:
-        query = query.filter(Item.category == category.lower())
-    query = query.order_by(Item.created_at.desc())
-    result = await db.execute(query)
-    return result.scalars().all()
+        query["category"] = category.lower()
+    return await Item.find(query).sort("-created_at").to_list()
 
 
 @router.post("/upload", response_model=ItemResponse, status_code=status.HTTP_201_CREATED)
@@ -43,7 +37,6 @@ async def upload_item(
     color: str = Form(None),
     tags: str = Form("[]"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     logger.info(f"Uploading new item for user: {current_user.id}, category={category}")
     if not file.content_type.startswith("image/"):
@@ -75,15 +68,13 @@ async def upload_item(
         parsed_tags = []
 
     item = Item(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         image_url=image_url,
         category=category.lower(),
         color=color.lower() if color else None,
         tags=parsed_tags,
     )
-    db.add(item)
-    await db.commit()
-    await db.refresh(item)
+    await item.insert()
     logger.info(f"Item {item.id} successfully created and uploaded for user: {current_user.id}")
     return item
 
@@ -92,10 +83,8 @@ async def upload_item(
 async def get_item(
     item_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Item).filter(Item.id == item_id, Item.user_id == current_user.id))
-    item = result.scalars().first()
+    item = await Item.find_one(Item.id == str(item_id), Item.user_id == str(current_user.id))
     if not item:
         logger.warning(f"Item not found or unauthorized access attempt: {item_id} by user {current_user.id}")
         raise HTTPException(status_code=404, detail="Item not found")
@@ -107,10 +96,8 @@ async def update_item(
     item_id: UUID,
     payload: ItemUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Item).filter(Item.id == item_id, Item.user_id == current_user.id))
-    item = result.scalars().first()
+    item = await Item.find_one(Item.id == str(item_id), Item.user_id == str(current_user.id))
     if not item:
         logger.warning(f"Update failed: item not found or unauthorized: {item_id}")
         raise HTTPException(status_code=404, detail="Item not found")
@@ -119,8 +106,7 @@ async def update_item(
     for key, value in update_data.items():
         setattr(item, key, value)
 
-    await db.commit()
-    await db.refresh(item)
+    await item.save()
     return item
 
 
@@ -129,17 +115,14 @@ async def update_item_status(
     item_id: UUID,
     payload: ItemStatusUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Item).filter(Item.id == item_id, Item.user_id == current_user.id))
-    item = result.scalars().first()
+    item = await Item.find_one(Item.id == str(item_id), Item.user_id == str(current_user.id))
     if not item:
         logger.warning(f"Status update failed: item not found or unauthorized: {item_id}")
         raise HTTPException(status_code=404, detail="Item not found")
 
     item.status = payload.status
-    await db.commit()
-    await db.refresh(item)
+    await item.save()
     return item
 
 
@@ -147,10 +130,8 @@ async def update_item_status(
 async def delete_item(
     item_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Item).filter(Item.id == item_id, Item.user_id == current_user.id))
-    item = result.scalars().first()
+    item = await Item.find_one(Item.id == str(item_id), Item.user_id == str(current_user.id))
     if not item:
         logger.warning(f"Delete failed: item not found or unauthorized: {item_id}")
         raise HTTPException(status_code=404, detail="Item not found")
@@ -162,5 +143,4 @@ async def delete_item(
     if public_id:
         delete_image(public_id)
 
-    await db.delete(item)
-    await db.commit()
+    await item.delete()
